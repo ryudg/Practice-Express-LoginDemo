@@ -72,7 +72,6 @@ app.post("/login", async (req, res) => {
   }
 });
 // if(!user){} user를 찾을 수 없는 경우 사용자에게 알릴 수 있다. 이때 암호가 틀렸거나 사용자를 찾을 수 없는 경우 사용자에게 어떤 문제가 있는지 알려주면 안됨. 즉, 사용자 이름 또는 암호를 찾을 수 없다고 알려야함
-
 // 사용자에게 자동으로 반환되는 특정 쿠키에 세션 저장소가 정보를 연계 시킴
 // 세션을 사용하고 있기 때문에 자동으로 발급된 세션 ID를 브라우저에서 보내는 요청과 함께 돌려보내면,
 // 서버는 먼저 세션 ID가 유효한지, 위조 또는 변조 되지 않았는지 서명되어 있는지 등을 확인함.
@@ -80,11 +79,18 @@ app.post("/login", async (req, res) => {
 // 현재 세션 내 연관된 정보 - `req.session.user_id = user._id`
 // 로그인에 성공할때, 등록할때에만  세션에 사용자 ID를 저장
 
+// logout
+app.post("/logout", (req, res) => {
+  req.session.user_id = null; // session에 저장된 user id 비우기
+  // req.session.destroy();  // 한 특성만 null로 설정하는 것이 아닌, session 전체를 파기
+  res.redirect("/login");
+});
+
 app.get("/secret", (req, res) => {
   if (!req.session.user_id) {
-    res.redirect("/login");
+    return res.redirect("/login");
   } else {
-    res.send("My Secret is.....");
+    res.render("secret");
   }
 });
 

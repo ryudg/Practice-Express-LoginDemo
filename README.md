@@ -252,3 +252,43 @@ app.get("/secret", (req, res) => {
   }
 });
 ```
+
+# 4. Logout
+
+> session에 사용자 ID 제거
+> 현재 사용자 로그인 유무를 확인하기 위해서는 세션에 사용자 ID로 저장된 ID를 확인.
+> 세션은 모두 서버에 저장되고 클라이언트로 반환되는 서명된 쿠키가 있다.
+> 이 서명된 쿠키는 유효성 검사를 할 수 없는데, 이 쿠키를 조정하거나 직접 만든 쿠키를 보내면 무시되어 거짓 값으로 지정됨
+> 즉 아무 정보도 얻을 수 없다. 이것이 바로 서명 작업의 핵심
+> 이러한 안전 장치가 없으면 가짜 세션 ID를 보내 다른 사용자인 척 로그인을 할 수 있다.
+
+```html
+<!-- views/secret.ejs -->
+
+...
+
+<form action="/logout" method="POST">
+  <button>Log Out</button>
+</form>
+```
+
+```javascript
+// index.js
+
+...
+
+
+app.post("/logout", (req, res) => {
+  req.session.user_id = null; // session에 저장된 user id 비우기
+  // req.session.destroy();  // 한 특성만 null로 설정하는 것이 아닌, session 전체를 파기
+  res.redirect("/login");
+});
+
+app.get("/secret", (req, res) => {
+  if (!req.session.user_id) {
+    return res.redirect("/login");
+  } else {
+    res.render("secret");
+  }
+});
+```
