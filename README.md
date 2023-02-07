@@ -187,7 +187,7 @@ app.post("/login", async (req, res) => {
 
 ```
 
-# 3. Session login 상태 확인
+# 3. Session에 login 정보 저장
 
 ## 3.1 세션에 로그인(등록)한 사용자의 ID를 저장
 
