@@ -1,6 +1,13 @@
 # Practice-Express-BcryptV2
 
-Bcrypt를 이용한 Login App Demo
+# Bcrypt를 이용한 Login App Demo
+
+## Install
+
+```bash
+## express ejs mongoose bcrypt express-session
+> npm i
+```
 
 # 1. Register
 
@@ -178,4 +185,70 @@ app.post("/login", async (req, res) => {
   }
 });
 
+```
+
+# 3. Session login 상태 확인
+
+## 3.1 세션에 로그인(등록)한 사용자의 ID를 저장
+
+```javascript
+// index.js
+
+...
+
+app.use(session({ secret: "loginsecret" }));  // 세션(session) 미들웨어를 추가, "secret" 옵션은 세션의 비밀 키를 지정하는데, 이 비밀 키는 세션 ID를 암호화하기 위해 사용
+
+...
+
+app.post("/register", async (req, res) => {
+  const { password, username } = req.body;
+  const hash = await bcrypt.hash(password, 12);
+  const user = new User({
+    username,
+    password: hash,
+  });
+  await user.save();
+  req.session.user_id = user._id; // 등록할 때 session에 user ID 저장
+  res.redirect("/");
+});
+
+...
+
+app.get("/login", (req, res) => {
+  res.render("login");
+});
+app.post("/login", async (req, res) => {
+  const { username, password } = req.body;
+  const user = await User.findOne({ username });
+  const validPassword = await bcrypt.compare(password, user.password);
+  if (validPassword) {
+    req.session.user_id = user._id; // 로그인할 때 session에 user ID 저장
+    res.send("WELECOME");
+  } else {
+    res.send("TRY AGAIN");
+  }
+});
+```
+
+- 사용자에게 자동으로 반환되는 특정 쿠키에 세션 저장소가 정보를 연계 시킴
+- 세션을 사용하고 있기 때문에 자동으로 발급된 세션 ID를 브라우저에서 보내는 요청과 함께 돌려보내면,
+- 서버는 먼저 세션 ID가 유효한지, 위조 또는 변조 되지 않았는지 서명되어 있는지 등을 확인함.
+- 그리고 그 ID를 사용해 연관된 정보를 가져옴
+- 현재 세션 내 연관된 정보 - `req.session.user_id = user._id`
+- 로그인에 성공할때, 등록할때에만 세션에 사용자 ID를 저장
+
+## 3.2 `/secret` route 보호
+
+```javascript
+// index.js
+
+...
+
+app.get("/secret", (req, res) => {
+  if (!req.session.user_id) {       // session에 user ID가 없다면
+    res.redirect("/login");         // /login page로 redirect
+  } else {                          // session에 user ID가 있다면
+    res.send("My Secret is.....");  // /secret page로 이동
+  }
+});
 ```
