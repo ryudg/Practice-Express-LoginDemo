@@ -319,3 +319,173 @@ app.get("/topsecret", requireLogin, (req, res) => {   // requireLogin 미들웨�
   res.send("TOP SECRET!!!!!!");
 });
 ```
+
+# 6. Refactoring
+
+## 6.1 static method
+
+- findOne을 호출해 사용자 이름으로 사용자를 찾고 암호가 맞는지 대조하는 두단계로 구성
+
+```javascript
+// index.js
+
+...
+
+User.메소드이름(username, password); // 이 메서드가 정보가 일치하는 사용자를 반환하거나 암호 등이 맞지 않아 유효한 사용자가 아닐 경우 false나 undefined를 반환
+const user = await User.findOne({ username });
+const validPassword = await bcrypt.compare(password, user.password);
+```
+
+- 이를 모델의 static method로 옮길 수 있다.
+  > Static Method는 클래스 외부에서 호출할 수 없고, 클래스 내부에서만 호출 가능한 메소드<br>
+  > Static Method에서는 클래스의 인스턴스를 생성하지 않고도 클래스 이름을 통해서 바로 호출할 수 있다.<br>
+  > 즉, 클래스 레벨에서 실행되는 메소드이다.
+
+```javascript
+// models/user.js
+const bcrypt = require("bcrypt");
+
+...
+
+// .static에 접근할 수 있다. 여기서 모델의 특정 인스턴스가 아닌 모델의 user 클래스에 추가할 수 있는 메서드를 정의할 수 있다.
+userSchema.statics.findAndValidate = async function (username, password) {
+  const foundUser = await this.findOne({ username }); // this는 특정 모델이나 스키마를 나타냄. 즉, User
+  const isValid = await bcrypt.compare(password, foundUser.password);
+  return isValid ? foundUser : false; // isValid가 참이면 foundUser 반환, 거짓이면 false 반환
+};
+```
+
+```javascript
+// index.js
+
+...
+
+  // const user = await User.findOne({ username });
+  // const validPassword = await bcrypt.compare(password, user.password);
+  const foundUser = await User.findAndValidate(username, password);
+  if (foundUser) {
+    req.session.user_id = foundUser._id;
+    // res.send("WELECOME");
+    res.redirect("/secret");
+  } else {
+    res.redirect("/login");
+  }
+});
+// if(!user
+```
+
+## 6.2 Mongoose와 model의 암호 해시
+
+> 사용자를 등록할 때 암호를 먼저 해시하고, 그 암호를 `new User`에 추가한 뒤 `save()` 했지만, <br>
+> Mongoose와 model이 대신 암호 해시 <br>
+> 그 후 User만 만들고 암호를 전달 한 뒤 `save()`를 호출하고 저장하기 전에 암호를 해시해서, 암호를 해시 암호를 교체하는 미들웨어를 모델이 사용하게 만들기
+
+```javascript
+// index.js
+
+...
+
+app.post("/register", async (req, res) => {
+  const { password, username } = req.body;  // password, username를 new User에 전달
+  // const hash = await bcrypt.hash(password, 12);
+  const user = new User({ username, password });
+  await user.save();
+  req.session.user_id = user._id;
+  res.redirect("/");
+});
+```
+
+- userSchema에 미들웨어 추가
+
+```javascript
+// models/user.js
+
+...
+
+// 함수를 실행하기 전 pre("save")
+userSchema.pre("save", function (next) {
+  this.password = "NOT YOUR REAL PASSWORD!!!"; // this는 현재 User 내의 특정 인스턴스, User 모델에 this.password를 업데이트해 실제로 전달한 암호를  "NOT YOUR REAL PASSWORD!!!"로 바꿈(하이재킹)
+  next(); // nexxt는 pre("save")에 의해 save가 됨
+});
+
+```
+
+- pig라는 사용자 추가
+
+```bash
+## mongoShell
+
+> db.users.find().pretty()
+
+...
+
+{
+        "_id" : ObjectId("63e28d4f161789ff8f93c83a"),
+        "username" : "pig",
+        "password" : "NOT YOUR REAL PASSWORD!!!",
+        "__v" : 0
+}
+```
+
+- `this.password`의 값을 bscrypt의 해시 암호로 대체하기
+
+```javascript
+// models/user.js
+
+...
+
+// 함수를 실행하기 전 pre("save")
+userSchema.pre("save", async function (next) {
+  // this.password = "NOT YOUR REAL PASSWORD!!!"; // this는 현재 User 내의 특정 인스턴스, User 모델에 this.password를 업데이트해 실제로 전달한 암호를  "NOT YOUR REAL PASSWORD!!!"로 바꿈(하이재킹)
+  this.password = await bcrypt.hash(this.password, 12); // 해시할 암호를 전달해야하는데, 암호는 현재 이 콜백에 제공되는 것이 아니라 this에 제공됨
+  next(); // nexxt는 pre("save")에 의해 save가 됨
+});
+// Bscrypt가 사용자 모델 내의 암호를 해시한 출력 값을 암호로 설정할 수 있다.
+```
+
+```bash
+## mongoShell
+
+> db.users.find().pretty()
+
+...
+
+{
+        "_id" : ObjectId("63e28ed6baa04ebbbb3e7eca"),
+        "username" : "cat",
+        "password" : "$2b$12$5eWuYwDllUJV9EbkBhy92e20.HOzY4cevsUusso6jTbZpVheuN26G",
+        "__v" : 0
+}
+```
+
+- 사용자는 사용자 이름과 암호를 가지고 있는데, 현재 사용자를 저장할 때마다 아래의 미들웨어가 실행됨
+
+```javascript
+// models/user.js
+
+...
+
+userSchema.pre("save", async function (next) {
+  this.password = await bcrypt.hash(this.password, 12);
+  next();
+});
+```
+
+- 암호를 변경하지 않고 사용자 이름만 변경하려고 할 때 암호를 다시 해시하게 되는데, 이는 불필요함.
+  - 즉, 암호가 변경됐을 때만 다시 해시해야함
+
+```javascript
+// models/user.js
+
+...
+
+// 함수를 실행하기 전 pre("save")
+userSchema.pre("save", async function (next) {
+  // password와 같은 필드를 전달 할 수 있다. 특정 사용자 모델 내 암호 변경 여부를 참, 거짓으로 나타낸다.
+  // 즉, `!this.isModified("password")` - 암호가 변경되지 않았을 경우 실행됨
+  if (!this.isModified("password")) return next();      // 암호가 변경되지 않았으면 next()
+  this.password = await bcrypt.hash(this.password, 12); // 암호가 변경되었으면 해시
+  next();
+});
+
+```

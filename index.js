@@ -39,11 +39,9 @@ app.get("/register", (req, res) => {
 });
 app.post("/register", async (req, res) => {
   const { password, username } = req.body;
-  const hash = await bcrypt.hash(password, 12);
-  const user = new User({
-    username,
-    password: hash,
-  });
+  // const hash = await bcrypt.hash(password, 12);
+  // const user = new User({ username, password: hash });
+  const user = new User({ username, password });
   await user.save();
   req.session.user_id = user._id;
   res.redirect("/");
@@ -67,11 +65,12 @@ app.get("/login", (req, res) => {
 });
 app.post("/login", async (req, res) => {
   const { username, password } = req.body; // username을 찾을때 findById를 사용하지만, 인증된 사용자를 대상으로하는 이번 경우에는 Id를 얻을 수 없다. 즉, 사용자 id로 찾아야함(아이디가 중복되면 안되는 이유)
-  const user = await User.findOne({ username });
+  // const user = await User.findOne({ username });
   // 사용자를 찾아서 req.body에 할당된 해시 암호와 사용자가 입력한 암호 대조하기
-  const validPassword = await bcrypt.compare(password, user.password); // boolean value
-  if (validPassword) {
-    req.session.user_id = user._id;
+  // const validPassword = await bcrypt.compare(password, user.password); // boolean value
+  const foundUser = await User.findAndValidate(username, password);
+  if (foundUser) {
+    req.session.user_id = foundUser._id;
     // res.send("WELECOME");
     res.redirect("/secret");
   } else {
