@@ -287,8 +287,35 @@ app.post("/logout", (req, res) => {
 app.get("/secret", (req, res) => {
   if (!req.session.user_id) {
     return res.redirect("/login");
-  } else {
-    res.render("secret");
   }
+  res.render("secret");
+});
+```
+
+# 5. Login Middleware
+
+> 사용자의 로그인 여부(사용자 ID가 session에 있는지)를 확인하는 미들웨어 만들기 <br>
+> 보호해야할 엔트포인트가 여러개일 때 유용
+
+```javascript
+// index.js
+
+...
+
+// app.use()를 사용해 항상 이 미들웨어를 적용하는 대신 함수 사용
+const requireLogin = (req, res, next) => {
+  if (!req.session.user_id) {
+    return res.redirect("/login");
+  }
+  next();
+};
+
+...
+
+app.get("/secret", requireLogin, (req, res) => {      // requireLogin 미들웨어 적용
+  res.render("secret");
+});
+app.get("/topsecret", requireLogin, (req, res) => {   // requireLogin 미들웨어 적용
+  res.send("TOP SECRET!!!!!!");
 });
 ```

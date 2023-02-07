@@ -21,6 +21,13 @@ app.set("views", "views"); // 'views' 디렉토리에서 EJS 템플릿 파일을
 
 app.use(express.urlencoded({ extended: true })); // 클라이언트에서 서버로 데이터를 전송할 때 URL 인코딩 방식으로 인코딩하여 전송할 수 있도록 해줌
 app.use(session({ secret: "loginsecret" })); // 세션(session) 미들웨어를 추가, "secret" 옵션은 세션의 비밀 키를 지정하는데, 이 비밀 키는 세션 ID를 암호화하기 위해 사용
+// app.use()를 사용해 항상 이 미들웨어를 적용하는 대신 함수 사용
+const requireLogin = (req, res, next) => {
+  if (!req.session.user_id) {
+    return res.redirect("/login");
+  }
+  next();
+};
 
 app.get("/", (req, res) => {
   res.send("THIS IS THE HOME PAGE");
@@ -86,12 +93,11 @@ app.post("/logout", (req, res) => {
   res.redirect("/login");
 });
 
-app.get("/secret", (req, res) => {
-  if (!req.session.user_id) {
-    return res.redirect("/login");
-  } else {
-    res.render("secret");
-  }
+app.get("/secret", requireLogin, (req, res) => {
+  res.render("secret");
+});
+app.get("/topsecret", requireLogin, (req, res) => {
+  res.send("TOP SECRET!!!!!!");
 });
 
 app.listen(3003, () => {
